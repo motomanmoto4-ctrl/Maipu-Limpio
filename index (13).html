@@ -1,0 +1,254 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>MAIPÚ LIMPIO - Gestión Integral</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#E30613">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto}
+body{background:#f5f5f5}
+.top{background:#E30613;color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;font-weight:900;position:sticky;top:0;z-index:9999}
+.tabs{display:flex;gap:6px;padding:10px;background:#fff;position:sticky;top:48px;z-index:999;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.tab{flex:1;padding:10px;border-radius:10px;border:0;font-weight:800;cursor:pointer;background:#f1f5f9}
+.tab.active{background:#E30613;color:#fff}
+#map{height:48vh;width:100%}
+.card{margin:10px;background:#fff;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.08);padding:14px}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-weight:700;font-size:12px}
+.badge-live{background:#dcfce7;color:#166534}.badge-off{background:#fee2e2;color:#991b1b}.badge-proc{background:#fef9c3;color:#854d0e}.badge-mov{background:#dbeafe;color:#1e40af}
+.btn{padding:10px 14px;border-radius:10px;border:0;font-weight:800;cursor:pointer}
+.btn-red{background:#E30613;color:#fff;width:100%}.btn-ghost{background:#f1f5f9}.btn-sm{padding:6px 10px;font-size:12px}
+input,select,textarea{width:100%;padding:11px;border-radius:10px;border:1px solid #ddd;margin:6px 0;font-size:14px}
+.hidden{display:none}
+.reclamo-item{border:1px solid #eee;border-radius:12px;padding:10px;margin:8px 0}
+.stars{font-size:22px;cursor:pointer}
+@keyframes pulse{0%{opacity:1}50%{opacity:.5}100%{opacity:1}}
+</style>
+</head><body>
+<div class="top"><div>🚛 MAIPÚ LIMPIO</div><div style="font-size:13px" id="hora">--:--</div></div>
+<div class="tabs">
+<button class="tab active" onclick="showTab('mapa')">🗺️ Mapa</button>
+<button class="tab" onclick="showTab('reclamos')">📢 Reclamos</button>
+<button class="tab" onclick="showTab('admin')">⚙️ Admin</button>
+</div>
+
+<!-- TAB MAPA -->
+<div id="tab-mapa">
+<div id="map"></div>
+<div class="card">
+<div style="display:flex;justify-content:space-between"><span id="status" class="badge badge-live">Conectando GPS real...</span><span id="count" style="font-size:12px;color:#666">0 unidades</span></div>
+<div id="msg" style="margin-top:8px;font-weight:700">Recolección en curso - Maipú • Mendoza</div>
+<div style="margin-top:8px;display:flex;gap:6px">
+<button class="btn btn-red" onclick="ponerFinalizado()" style="flex:1">PONER FINALIZADO</button>
+<button class="btn btn-ghost" onclick="ponerEnServicio()" style="flex:1">PONER EN SERVICIO</button>
+</div>
+</div>
+<div class="card" style="border:2px solid #E30613">
+<div style="font-weight:900;color:#E30613">🤖 IA Maipú Limpio</div>
+<div id="iaChat" style="height:110px;overflow:auto;background:#f8fafc;padding:8px;border-radius:8px;margin:8px 0;font-size:13px">Hola, soy tu asistente. ¿A qué hora pasa? ¿Querés hacer un reclamo? Escribí abajo.</div>
+<div style="display:flex;gap:6px"><input id="iaInput" placeholder="¿A qué hora pasa por mi cuadra?"><button class="btn btn-red" onclick="iaResponder()" style="width:auto">Enviar</button></div>
+</div>
+</div>
+
+<!-- TAB RECLAMOS VECINO -->
+<div id="tab-reclamos" class="hidden">
+<div class="card">
+<h3>📢 Hacer un reclamo</h3>
+<p style="font-size:12px;color:#666">Solo residuos domiciliarios. Respuesta 24hs.</p>
+<input id="r_nombre" placeholder="Nombre y apellido">
+<input id="r_tel" placeholder="Tel / WhatsApp">
+<input id="r_dir" placeholder="Dirección (ej: Ozamis 123)">
+<select id="r_barrio"><option>Maipú Centro</option><option>Barrancas</option><option>Coquimbito</option><option>Fray Luis Beltrán</option><option>San Roque</option><option>Rodeo del Medio</option><option>Otro</option></select>
+<select id="r_tipo"><option value="No pasó el camión">No pasó el camión</option><option value="Basura dispersa">Basura dispersa</option><option value="Camión no levantó">Camión no levantó todo</option><option value="Contenedor roto">Contenedor roto</option><option value="Otro">Otro</option></select>
+<textarea id="r_desc" placeholder="Descripción del reclamo..."></textarea>
+<label style="font-size:12px">Foto (opcional):</label><input type="file" id="r_foto" accept="image/*">
+<button class="btn btn-red" onclick="enviarReclamo()">ENVIAR RECLAMO</button>
+<div id="r_ok" style="display:none;margin-top:8px;background:#dcfce7;padding:10px;border-radius:8px;font-weight:700">✅ Reclamo enviado. ID: <span id="r_id"></span>. Te avisamos 24hs.</div>
+</div>
+<div class="card">
+<h4>Mis reclamos</h4>
+<div id="misReclamos"></div>
+</div>
+</div>
+
+<!-- TAB ADMIN -->
+<div id="tab-admin" class="hidden">
+<div class="card" id="adminLogin">
+<h3>⚙️ Administración</h3>
+<input id="adminClave" type="password" placeholder="Clave admin">
+<button class="btn btn-red" onclick="loginAdmin()">ENTRAR</button>
+<p style="font-size:11px;color:#888;margin-top:6px">Clave: barrancas2026</p>
+</div>
+<div id="adminPanel" class="hidden">
+<div class="card">
+<div style="display:flex;justify-content:space-between;align-items:center"><h3>📋 Reclamos recibidos</h3><button class="btn btn-ghost btn-sm" onclick="logoutAdmin()">Salir</button></div>
+<div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
+<button class="btn btn-ghost btn-sm" onclick="filtrarAdmin('todos')">Todos (<span id="c_todos">0</span>)</button>
+<button class="btn btn-ghost btn-sm" onclick="filtrarAdmin('Pendiente')">Pendientes</button>
+<button class="btn btn-ghost btn-sm" onclick="filtrarAdmin('En Proceso')">En Proceso</button>
+<button class="btn btn-ghost btn-sm" onclick="filtrarAdmin('Movilidad Enviada')">Movilidad</button>
+<button class="btn btn-ghost btn-sm" onclick="filtrarAdmin('Finalizado')">Finalizados</button>
+</div>
+<div id="listaAdmin"></div>
+</div>
+<div class="card">
+<h4>📊 Encuestas vecinos</h4>
+<div id="encuestasAdmin"></div>
+</div>
+</div>
+</div>
+
+<script>
+// --- ESTADO GLOBAL ---
+const MAIPU = {lat:-32.985,lng:-68.78};
+const m = L.map('map').setView([MAIPU.lat,MAIPU.lng],13.5);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(m);
+let trucks={}, lastData=[], filtroAdmin='todos';
+
+// --- TABS ---
+function showTab(t){
+  document.querySelectorAll('[id^="tab-"]').forEach(d=>d.classList.add('hidden'));
+  document.getElementById('tab-'+t).classList.remove('hidden');
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+  if(t==='mapa') setTimeout(()=>m.invalidateSize(),200);
+  if(t==='reclamos') renderMisReclamos();
+  if(t==='admin') renderAdmin();
+}
+
+// --- MAPA / GPS REAL ---
+function setStatus(txt,live){
+  document.getElementById('status').innerHTML=`<span style="width:8px;height:8px;background:${live?'#22c55e':'#ef4444'};border-radius:50%;display:inline-block;animation:pulse 1.5s infinite"></span> ${txt}`;
+  document.getElementById('status').className=live?'badge badge-live':'badge badge-off';
+}
+function renderTrucks(list){
+  lastData=list;
+  document.getElementById('count').innerText=list.length+' unidades en Maipú';
+  Object.values(trucks).forEach(mm=>{try{m.removeLayer(mm)}catch(e){}});
+  trucks={};
+  list.forEach(v=>{
+    const icon=L.divIcon({html:`<div style="background:#E30613;color:#fff;padding:6px 10px;border-radius:10px;font-weight:900;box-shadow:0 3px 10px rgba(0,0,0,.4);border:2px solid #fff;font-size:12px">🚛 ${v.alias}<br><small style="font-size:8px">${v.vel||0}km/h</small></div>`,className:'',iconSize:[60,36]});
+    trucks[v.id]=L.marker([v.lat,v.lng],{icon}).addTo(m);
+  });
+  if(list.length>0){ setStatus('EN SERVICIO - GPS REAL',true); localStorage.removeItem('maipu_estado'); }
+}
+async function fetchReal(){
+  const eps=['vehicles.json'];
+  for(let ep of eps){
+    try{const r=await fetch(ep,{cache:'no-store'}); if(r.ok){const d=await r.json(); if(d.vehicles&&d.vehicles.length>0) return d.vehicles;}}catch(e){}
+  }
+  return null;
+}
+async function loadMapa(){
+  const estado=JSON.parse(localStorage.getItem('maipu_estado')||'null');
+  if(estado&&estado.estado==='FINALIZADO'){ setStatus('FINALIZADO - '+estado.msg,false); document.getElementById('msg').innerText=estado.msg; }
+  const real=await fetchReal();
+  if(real&&real.length>0) renderTrucks(real);
+  else{
+    const demo=[{id:38,alias:'38',lat:MAIPU.lat+0.008,lng:MAIPU.lng-0.006,vel:18},{id:41,alias:'41',lat:MAIPU.lat-0.004,lng:MAIPU.lng+0.009,vel:22},{id:'VL176',alias:'VL176',lat:MAIPU.lat+0.002,lng:MAIPU.lng+0.002,vel:15}];
+    renderTrucks(demo);
+    setInterval(()=>{demo.forEach(v=>{v.lat+=(Math.random()-0.5)*0.0015;v.lng+=(Math.random()-0.5)*0.0015;v.vel=12+Math.floor(Math.random()*20);});renderTrucks(demo);},2500);
+    setStatus('EN SERVICIO - DEMO real',true);
+  }
+}
+function ponerFinalizado(){
+  const msg=prompt('Mensaje FINALIZADO:','Recolección mañana a partir de las 6 am');
+  if(!msg) return; localStorage.setItem('maipu_estado',JSON.stringify({estado:'FINALIZADO',msg,ts:Date.now()})); location.reload();
+}
+function ponerEnServicio(){localStorage.removeItem('maipu_estado'); location.reload();}
+setInterval(()=>{document.getElementById('hora').innerText=new Date().toLocaleTimeString('es-AR',{timeZone:'America/Argentina/Mendoza'});},1000);
+loadMapa(); setInterval(loadMapa,15000);
+if(location.search.toLowerCase().includes('enservicio')){localStorage.removeItem('maipu_estado'); history.replaceState(null,'',location.pathname);}
+
+// --- IA ---
+function iaResponder(){
+  const q=document.getElementById('iaInput').value.toLowerCase(); const chat=document.getElementById('iaChat'); if(!q) return;
+  chat.innerHTML+=`<div><b>Vos:</b> ${q}</div>`; let r='';
+  if(q.includes('hora')||q.includes('cuando')) r='Camión 38 en Maipú ahora, pasa en ~10 min si estás cerca del recorrido. Dejá tacho antes de 6am/7pm.';
+  else if(q.includes('reclamo')) r='Andá a la pestaña 📢 Reclamos y cargá tu reclamo con foto. Te respondemos 24hs.';
+  else if(q.includes('finalizado')) r='FINALIZADO = ya pasó hoy. EN SERVICIO = aún recorre Maipú.';
+  else r='Tenemos '+(lastData.length||3)+' camiones activos. ¿Querés hacer un reclamo?';
+  chat.innerHTML+=`<div style="background:#fff3f3;padding:6px;border-radius:6px;margin:4px 0"><b>🤖:</b> ${r}</div>`; document.getElementById('iaInput').value=''; chat.scrollTop=chat.scrollHeight;
+}
+
+// --- RECLAMOS VECINO ---
+function getReclamos(){return JSON.parse(localStorage.getItem('maipu_reclamos')||'[]');}
+function saveReclamos(l){localStorage.setItem('maipu_reclamos',JSON.stringify(l));}
+function enviarReclamo(){
+  const nombre=document.getElementById('r_nombre').value, tel=document.getElementById('r_tel').value, dir=document.getElementById('r_dir').value, barrio=document.getElementById('r_barrio').value, tipo=document.getElementById('r_tipo').value, desc=document.getElementById('r_desc').value;
+  if(!nombre||!dir||!desc){alert('Completá nombre, dirección y descripción'); return;}
+  const lista=getReclamos();
+  const id='ML-'+Date.now().toString().slice(-6);
+  const nuevo={id,nombre,tel,dir,barrio,tipo,desc,fecha:new Date().toLocaleString('es-AR'),estado:'Pendiente',foto:'',respuesta:'',movilidad:'',encuesta:null,calif:null};
+  lista.unshift(nuevo); saveReclamos(lista);
+  document.getElementById('r_id').innerText=id; document.getElementById('r_ok').style.display='block';
+  document.getElementById('r_nombre').value=''; document.getElementById('r_desc').value='';
+  renderMisReclamos();
+}
+function renderMisReclamos(){
+  const lista=getReclamos(); const div=document.getElementById('misReclamos');
+  if(lista.length===0){div.innerHTML='<p style="color:#888;font-size:12px">No hiciste reclamos aún</p>'; return;}
+  div.innerHTML=lista.map(r=>`
+    <div class="reclamo-item">
+      <div style="display:flex;justify-content:space-between"><b>${r.id}</b><span class="badge ${r.estado==='Pendiente'?'badge-off':r.estado==='En Proceso'?'badge-proc':r.estado==='Movilidad Enviada'?'badge-mov':'badge-live'}">${r.estado}</span></div>
+      <div style="font-size:12px;margin:4px 0">${r.tipo} - ${r.dir} (${r.barrio})</div>
+      <div style="font-size:11px;color:#666">${r.fecha}</div>
+      ${r.respuesta?`<div style="background:#f0fdf4;padding:6px;border-radius:6px;margin-top:6px;font-size:12px"><b>Respuesta:</b> ${r.respuesta}${r.movilidad?`<br><b>Movilidad:</b> ${r.movilidad}`:''}</div>`:''}
+      ${r.estado==='Finalizado'&&!r.encuesta?`<div style="margin-top:8px"><b>¿Cómo te atendimos?</b><div><span class="stars" onclick="encuestar('${r.id}',1)">⭐</span><span class="stars" onclick="encuestar('${r.id}',2)">⭐⭐</span><span class="stars" onclick="encuestar('${r.id}',3)">⭐⭐⭐</span><span class="stars" onclick="encuestar('${r.id}',4)">⭐⭐⭐⭐</span><span class="stars" onclick="encuestar('${r.id}',5)">⭐⭐⭐⭐⭐</span></div></div>`:''}
+      ${r.calif?`<div style="font-size:12px;margin-top:4px">Encuesta: ${'⭐'.repeat(r.calif)} - ${r.encuesta||''}</div>`:''}
+    </div>
+  `).join('');
+}
+function encuestar(id,calif){
+  const txt=prompt('Comentario encuesta (opcional):','');
+  const lista=getReclamos(); const r=lista.find(x=>x.id===id); if(r){r.calif=calif; r.encuesta=txt; saveReclamos(lista); renderMisReclamos();}
+}
+
+// --- ADMIN ---
+function loginAdmin(){
+  if(document.getElementById('adminClave').value==='barrancas2026'){localStorage.setItem('maipu_admin','1'); document.getElementById('adminLogin').classList.add('hidden'); document.getElementById('adminPanel').classList.remove('hidden'); renderAdmin();}
+  else alert('Clave incorrecta');
+}
+function logoutAdmin(){localStorage.removeItem('maipu_admin'); document.getElementById('adminLogin').classList.remove('hidden'); document.getElementById('adminPanel').classList.add('hidden');}
+function filtrarAdmin(f){filtroAdmin=f; renderAdmin();}
+function renderAdmin(){
+  if(localStorage.getItem('maipu_admin')!=='1') return;
+  document.getElementById('adminLogin').classList.add('hidden'); document.getElementById('adminPanel').classList.remove('hidden');
+  const lista=getReclamos();
+  document.getElementById('c_todos').innerText=lista.length;
+  let filtrada=filtroAdmin==='todos'?lista:lista.filter(r=>r.estado===filtroAdmin);
+  const div=document.getElementById('listaAdmin');
+  if(filtrada.length===0){div.innerHTML='<p style="color:#888;font-size:12px">Sin reclamos en este filtro</p>';}
+  else{
+    div.innerHTML=filtrada.map(r=>`
+      <div class="reclamo-item">
+        <div style="display:flex;justify-content:space-between"><b>${r.id} - ${r.nombre}</b><span class="badge badge-off">${r.estado}</span></div>
+        <div style="font-size:12px">${r.tipo} | ${r.dir} - ${r.barrio} | ${r.tel}</div>
+        <div style="font-size:12px;color:#444;margin:4px 0">${r.desc}</div>
+        <div style="font-size:11px;color:#888">${r.fecha}</div>
+        <div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">
+          <select id="est_${r.id}" style="width:auto"><option ${r.estado==='Pendiente'?'selected':''}>Pendiente</option><option ${r.estado==='En Proceso'?'selected':''}>En Proceso</option><option ${r.estado==='Movilidad Enviada'?'selected':''}>Movilidad Enviada</option><option ${r.estado==='Finalizado'?'selected':''}>Finalizado</option></select>
+          <input id="resp_${r.id}" placeholder="Respuesta al vecino" value="${r.respuesta||''}" style="flex:1">
+          <input id="mov_${r.id}" placeholder="Movilidad / Chofer" value="${r.movilidad||''}" style="flex:1">
+          <button class="btn btn-red btn-sm" onclick="guardarReclamo('${r.id}')">Guardar</button>
+          <button class="btn btn-ghost btn-sm" onclick="verMapaReclamo('${r.dir}')">Ver mapa</button>
+        </div>
+      </div>
+    `).join('');
+  }
+  const enc=document.getElementById('encuestasAdmin');
+  const conEnc=lista.filter(r=>r.calif);
+  enc.innerHTML=conEnc.length===0?'<p style="font-size:12px;color:#888">Sin encuestas aún</p>':conEnc.map(r=>`<div style="font-size:12px;border-bottom:1px solid #eee;padding:6px 0"><b>${r.id}</b> - ${'⭐'.repeat(r.calif)} - ${r.nombre} - ${r.encuesta||'Sin comentario'}</div>`).join('');
+}
+function guardarReclamo(id){
+  const lista=getReclamos(); const r=lista.find(x=>x.id===id);
+  if(r){r.estado=document.getElementById('est_'+id).value; r.respuesta=document.getElementById('resp_'+id).value; r.movilidad=document.getElementById('mov_'+id).value; saveReclamos(lista); renderAdmin(); renderMisReclamos(); alert('Reclamo '+id+' actualizado a '+r.estado);}
+}
+function verMapaReclamo(dir){showTab('mapa'); document.querySelectorAll('.tab')[0].classList.add('active'); alert('Dirección reclamo: '+dir+' - Buscar en mapa manualmente');}
+
+// Auto login si ya estaba logueado
+if(localStorage.getItem('maipu_admin')==='1'){document.getElementById('adminLogin').classList.add('hidden'); document.getElementById('adminPanel').classList.remove('hidden'); renderAdmin();}
+
+// Check ?admin
+if(location.search.includes('admin')){showTab('admin'); document.querySelectorAll('.tab')[2].classList.add('active');}
+</script>
+</body></html>

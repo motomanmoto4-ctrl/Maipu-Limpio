@@ -1,0 +1,70 @@
+{
+  "count": 6,
+  "status": "EN SERVICIO - 6 camiones hoy - Si mañana salen 4, muestra 4. Si salen 9, muestra 9",
+  "last_update": "2026-09-13T18:06:54.036927",
+  "source": "https://rastreo.idecgps.com.ar/streetz/ - recoleccion/maipu - DINAMICO",
+  "flota": "38-46+VL176 dinamico",
+  "nota": "43 y 46 no salieron hoy, por eso no aparecen. Si mañana ocupan el 43, saldra automaticamente como trabajando porque el script lee todo lo que este activo en la API real.",
+  "vehicles": [
+    {
+      "id": "39",
+      "alias": "39 CC-39",
+      "lat": -32.8905,
+      "lng": -68.818,
+      "vel": 0,
+      "estado": "DETENIDO",
+      "zona": "Luzuriaga",
+      "en_servicio": true
+    },
+    {
+      "id": "40",
+      "alias": "40 CC-40",
+      "lat": -32.908,
+      "lng": -68.785,
+      "vel": 10,
+      "estado": "EN SERVICIO - 10 km/h",
+      "zona": "Distrito Gutierrez",
+      "en_servicio": true
+    },
+    {
+      "id": "42",
+      "alias": "42 CC-42",
+      "lat": -32.968,
+      "lng": -68.765,
+      "vel": 12,
+      "estado": "EN SERVICIO - 12 km/h",
+      "zona": "General Gutierrez",
+      "en_servicio": true
+    },
+    {
+      "id": "45",
+      "alias": "45 CC-45",
+      "lat": -32.948,
+      "lng": -68.78,
+      "vel": 14,
+      "estado": "EN SERVICIO - 14 km/h",
+      "zona": "General Gutierrez",
+      "en_servicio": true
+    },
+    {
+      "id": "38",
+      "alias": "38 CC-33",
+      "lat": -32.995,
+      "lng": -68.77,
+      "vel": 6,
+      "estado": "EN SERVICIO - 6 km/h",
+      "zona": "Rodeo",
+      "en_servicio": true
+    },
+    {
+      "id": "VL176",
+      "alias": "VL 176",
+      "lat": -32.992,
+      "lng": -68.735,
+      "vel": 3,
+      "estado": "EN SERVICIO - 3 km/h",
+      "zona": "Villa Maipu",
+      "en_servicio": true
+    }
+  ]
+}

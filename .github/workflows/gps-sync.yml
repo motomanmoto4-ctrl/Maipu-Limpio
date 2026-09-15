@@ -22,7 +22,7 @@ jobs:
           IDEC_PASS: maipu
         run: |
           python << 'PY'
-          import requests, json, os, re, datetime, time
+          import requests, json, os, re, datetime, time, zoneinfo
 
           BASE = "https://rastreo.idecgps.com.ar"
           USER = os.getenv("IDEC_USER","recoleccion")
@@ -193,7 +193,7 @@ jobs:
           out={
               "count":len(vehicles),
               "status":f"EN SERVICIO - {len(vehicles)} camiones - 38-46+VL176 - {datetime.datetime.now().strftime('%d/%m %H:%M')} - {'GPS REAL' if found else 'CACHE - fallo login'}",
-              "last_update":datetime.datetime.now().isoformat(),
+              "last_update":datetime.datetime.now(datetime.timezone.utc).isoformat(),
               "source":f"{found or 'cache'} - token {'OK' if token else 'FALLO'} - companyId 66 - {USER}",
               "flota_oficial":"38-39-40-41-42-43-44-45-46 + VL176",
               "debug_token": "OK" if token else "NO TOKEN - revisar login endpoint",
@@ -209,4 +209,3 @@ jobs:
           git config user.email "gps@maipu.gob.ar"
           git add vehicles.json
           git diff --staged --quiet || (git commit -m "GPS REAL TOKEN $(date -u +'%H:%M UTC') companyId 66" && git push)
-          

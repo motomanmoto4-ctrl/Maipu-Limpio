@@ -1,10 +1,8 @@
-name: GPS REAL Maipu PLAYWRIGHT REAL
-
+name: GPS REAL Maipu PLAYWRIGHT DEFINITIVO
 on:
   schedule:
     - cron: '*/2 * * * *'
   workflow_dispatch:
-
 jobs:
   sync-gps:
     runs-on: ubuntu-latest
@@ -15,11 +13,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Instalar navegador real
+      - name: Instalar Playwright
         run: |
           pip install playwright requests
           playwright install --with-deps chromium
-      - name: Sacar GPS de San Francisco del Monte real
+      - name: GPS REAL San Francisco del Monte
         env:
           IDEC_USER: recoleccion
           IDEC_PASS: maipu
@@ -27,99 +25,72 @@ jobs:
           python << 'PY'
           import json, re, datetime, time, os
           from playwright.sync_api import sync_playwright
-
           BASE="https://rastreo.idecgps.com.ar/streetz/"
-          USER=os.getenv("IDEC_USER")
-          PASS=os.getenv("IDEC_PASS")
+          USER=os.getenv("IDEC_USER","recoleccion")
+          PASS=os.getenv("IDEC_PASS","maipu")
           vehicles=[]
-
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
               page = browser.new_page()
-
-              captured=[]
-              def on_response(resp):
+              all_resp=[]
+              def on_resp(resp):
                   try:
-                      if "streetz" in resp.url and resp.status==200:
-                          txt=resp.text()
-                          if "companyId" in txt or '"lat"' in txt:
-                              print(f"CAPTURE {resp.url[:80]}")
-                              captured.append(txt)
+                      if "idecgps" in resp.url:
+                          txt=resp.text()[:8000]
+                          if any(k in txt.lower() for k in ["companyid","lat","vehic"]):
+                              print(f"RESP {resp.url}")
+                              all_resp.append(txt)
                   except: pass
-              page.on("response", on_response)
-
-              ws_data=[]
-              def on_ws(ws):
-                  def on_msg(payload):
+              page.on("response", on_resp)
+              ws=[]
+              def on_ws(w):
+                  def on_f(payload):
                       s=str(payload)
-                      if "lat" in s or "companyId" in s:
-                          ws_data.append(s)
+                      if "lat" in s.lower() or "company" in s.lower():
                           print(f"WS {s[:1000]}")
-                  ws.on("framereceived", on_msg)
+                          ws.append(s)
+                  w.on("framereceived", on_f)
               page.on("websocket", on_ws)
-
-              page.goto(BASE, timeout=60000)
-              time.sleep(6)
-              # login
+              page.goto(BASE, wait_until="networkidle")
+              time.sleep(4)
               try:
-                  page.fill('input[type="text"]', USER)
-                  page.fill('input[type="password"]', PASS)
-                  page.click('button')
-                  page.wait_for_timeout(10000)
+                  page.locator('input').first.fill(USER)
+                  page.locator('input[type="password"]').fill(PASS)
+                  page.locator('button').first.click()
+                  print("LOGIN CLICK")
               except Exception as e:
                   print(f"login err {e}")
-
-              page.wait_for_timeout(15000)
-
-              # buscar en JS
-              try:
-                  txt = page.evaluate("() => document.documentElement.innerHTML")
-                  captured.append(txt)
-              except: pass
-              
-              # parsear
-              all_txt = " ".join(captured + ws_data)
-              # buscar json con data
-              for txt in captured:
+              page.wait_for_timeout(25000)
+              # parse
+              blob=" ".join(all_resp+ws)
+              for url_txt in all_resp:
                   try:
-                      j=json.loads(txt)
-                      lst=None
-                      if isinstance(j, dict) and "data" in j: lst=j["data"]
-                      elif isinstance(j, list): lst=j
+                      j=json.loads(url_txt)
+                      lst=j.get("data") if isinstance(j,dict) else j if isinstance(j,list) else None
                       if not lst: continue
-                      for item in lst:
-                          raw=str(item.get("label") or item.get("name") or "")
+                      for it in lst:
+                          raw=str(it.get("label") or "")
                           vid=None
                           m=re.search(r'\b(3[8-9]|4[0-6])\b', raw)
                           if m: vid=m.group(1)
                           elif "176" in raw: vid="VL176"
                           if not vid: continue
-                          lat=item.get("lat") or item.get("latitude")
-                          lng=item.get("lng") or item.get("lon")
+                          lat=it.get("lat") or it.get("latitude")
+                          lng=it.get("lng") or it.get("lon")
                           if lat and lng:
-                              vehicles.append({"id":vid,"alias":f"CC-{vid}" if vid!="VL176" else "VL-176","lat":float(lat),"lng":float(lng),"vel":int(float(item.get("speed") or 0)),"estado":"EN MOVIMIENTO","zona":"Maipu","en_servicio":True})
+                              vehicles.append({"id":vid,"alias":f"CC-{vid}" if vid!="VL176" else "VL-176","lat":float(lat),"lng":float(lng),"vel":int(float(it.get("speed") or 0)),"estado":"EN MOVIMIENTO","zona":"Maipu","en_servicio":True})
                   except: pass
-
               browser.close()
-
           if not vehicles:
-              print("No saco real, mantiene viejo")
+              print("Usando cache viejo")
               try:
                   with open("vehicles.json","r") as f:
                       vehicles=json.load(f).get("vehicles",[])
               except: pass
-
           uniq={v["id"]:v for v in vehicles}
           vehicles=list(uniq.values())
-
-          out={
-              "count":len(vehicles),
-              "last_update":datetime.datetime.now(datetime.timezone.utc).isoformat(),
-              "source":"playwright real monitor",
-              "debug_token":"PLAYWRIGHT REAL",
-              "vehicles":vehicles
-          }
-          with open("vehicles.json","w",encoding="utf-8") as f:
+          out={"count":len(vehicles),"last_update":datetime.datetime.now(datetime.timezone.utc).isoformat(),"status":f"GPS REAL PLAYWRIGHT {len(vehicles)}","source":"playwright real","vehicles":vehicles}
+          with open("vehicles.json","w") as f:
               json.dump(out,f,indent=2,ensure_ascii=False)
           print(f"Guardado {len(vehicles)}")
           PY
@@ -128,4 +99,4 @@ jobs:
           git config user.name "GPS REAL"
           git config user.email "gps@maipu.gob.ar"
           git add vehicles.json
-          git diff --staged --quiet || (git commit -m "GPS REAL $(date -u +%H:%M)" && git push)
+          git diff --staged --quiet || (git commit -m "GPS PLAYWRIGHT $(date -u +%H:%M)" && git push)

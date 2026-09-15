@@ -1,8 +1,8 @@
 {
   "count": 8,
-  "last_update": "2026-09-15T01:13:00.979236+00:00",
-  "source": "playwright real monitor",
-  "debug_token": "PLAYWRIGHT REAL",
+  "last_update": "2026-09-15T01:20:37.889469+00:00",
+  "status": "GPS REAL PLAYWRIGHT 8",
+  "source": "playwright real",
   "vehicles": [
     {
       "id": "VL176",

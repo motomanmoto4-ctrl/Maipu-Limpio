@@ -1,4 +1,4 @@
-name: GPS REAL Maipu V5 SAN FRANCISCO REAL
+name: GPS REAL Maipu V8 IP
 on:
   schedule:
     - cron: '*/2 * * * *'
@@ -13,166 +13,127 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install playwright requests
-      - run: playwright install --with-deps chromium
-      - name: Sacar GPS REAL
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+      - name: GPS REAL desde 190.111.129.5
         env:
           IDEC_USER: recoleccion
           IDEC_PASS: maipu
         run: |
           python << 'PY'
-          import json, re, time, os, datetime
+          import json, re, time, os, datetime, traceback
           from playwright.sync_api import sync_playwright
-
-          USER=os.getenv("IDEC_USER"); PASS=os.getenv("IDEC_PASS")
-          BASE="https://rastreo.idecgps.com.ar/streetz/"
+          USER=os.getenv("IDEC_USER")
+          PASS=os.getenv("IDEC_PASS")
           vehicles=[]
-
-          with sync_playwright() as p:
-              browser=p.chromium.launch(headless=True)
+          debug_log=[]
+          try:
+            with sync_playwright() as p:
+              browser=p.chromium.launch(headless=True, args=["--ignore-certificate-errors"])
               page=browser.new_page()
-              logs=[]
-
-              # Capturar TODO lo que venga de IDEC
-              def on_resp(r):
-                  try:
-                      url=r.url
-                      if "rastreo.idecgps" in url and r.status==200:
-                          ct=r.headers.get("content-type","")
-                          if "json" in ct or "api" in url.lower():
-                              txt=r.text()
-                              if len(txt)>50 and ("lat" in txt.lower() or "companyid" in txt.lower() or "label" in txt.lower()):
-                                  print(f"JSON {url} => {txt[:1500]}")
-                                  logs.append((url,txt))
-                  except: pass
+              page.set_default_timeout(30000)
+              captured=[]
+              def on_resp(resp):
+                try:
+                  if "190.111.129.5" in resp.url and resp.status==200:
+                    t=resp.text()
+                    if len(t)>100 and ("lat" in t.lower() or "CC-" in t or "company" in t.lower()):
+                      print(f"CAPTURA {resp.url[:100]} len {len(t)}")
+                      captured.append(t[:20000])
+                except: pass
               page.on("response", on_resp)
-
-              ws_logs=[]
-              def on_ws(ws):
-                  def on_msg(m):
-                      s=str(m)
-                      if len(s)>30 and ("lat" in s.lower() or "company" in s.lower() or "cc-" in s.lower() or "41" in s):
-                          print(f"WS {s[:1500]}")
-                          ws_logs.append(s)
-                  ws.on("framereceived", on_msg)
-              page.on("websocket", on_ws)
-
-              page.goto(BASE, wait_until="domcontentloaded")
-              time.sleep(5)
-              # Login real StreetZ
+              print("GOTO http://190.111.129.5/mini/login.html")
+              page.goto("http://190.111.129.5/mini/login.html", wait_until="domcontentloaded", timeout=40000)
+              time.sleep(6)
               try:
-                  page.get_by_placeholder("Usuario").fill(USER)
-              except:
-                  try: page.locator('input[type="text"]').first.fill(USER)
-                  except: pass
-              try:
-                  page.get_by_placeholder("Contraseña").fill(PASS)
-              except:
-                  try: page.locator('input[type="password"]').fill(PASS)
-                  except: pass
-              time.sleep(1)
-              try:
-                  page.get_by_role("button", name="Ingresar").click()
-              except:
-                  try: page.locator('button[type="submit"]').click()
-                  except: page.keyboard.press("Enter")
-              print("Login enviado, esperando 25s mapa")
-              time.sleep(25)
-
-              # Ahora pedir posiciones via JS usando el mismo fetch que usa la pagina
-              try:
-                  data = page.evaluate("""async () => {
-                      let out = [];
-                      // intentar llamar a los endpoints que usa StreetZ internamente
-                      const tries = [
-                          '/streetz/api/getVehicles',
-                          '/streetz/api/vehicles',
-                          '/streetz/api/Vehicle/GetAll',
-                          '/streetz/api/posiciones',
-                          '/streetz/api/units',
-                      ];
-                      for (let ep of tries) {
-                          try {
-                              let r = await fetch(ep, {credentials:'include'});
-                              let t = await r.text();
-                              if (t && t.length>100) out.push(ep+':'+t.substring(0,8000));
-                          } catch(e){}
-                      }
-                      // tambien buscar en window
-                      try {
-                          for (let k in window) {
-                              try {
-                                  let v = window[k];
-                                  if (v && typeof v==='object') {
-                                      let s = JSON.stringify(v);
-                                      if (s && s.length>100 && s.length<20000 && (s.includes('CC-') || s.includes('companyId'))) out.push(k+':'+s.substring(0,8000));
-                                  }
-                              } catch(e){}
-                          }
-                      } catch(e){}
-                      return out.join('\\n---\\n');
-                  }""")
-                  print(f"EVAL {data[:8000]}")
-                  logs.append(("eval", data))
+                page.locator('input[type="text"]').first.fill(USER)
+                page.locator('input[type="password"]').first.fill(PASS)
+                page.locator('button, input[type="submit"], button:has-text("Ingresar")').first.click()
+                print("LOGIN OK")
               except Exception as e:
-                  print(f"eval err {e}")
-
-              time.sleep(5)
+                debug_log.append(f"login err {e}")
+              time.sleep(18)
+              try:
+                html=page.content()
+                captured.append(html[:20000])
+                print(f"HTML final len {len(html)}")
+              except Exception as e:
+                debug_log.append(str(e))
               browser.close()
-
-              # Parsear todo lo capturado
-              blob = "\n".join([t for u,t in logs] + ws_logs)
-              # Buscar JSON array con companyId 66
-              for url,txt in logs:
-                  try:
-                      j=json.loads(txt.split(':',1)[-1] if ':' in txt[:100] else txt)
-                      lst=None
-                      if isinstance(j, dict) and "data" in j: lst=j["data"]
-                      elif isinstance(j, list): lst=j
-                      elif isinstance(j, dict) and "vehicles" in j: lst=j["vehicles"]
-                      if not lst: continue
-                      print(f"Lista {len(lst)} en {url}")
-                      for it in lst:
-                          if not isinstance(it, dict): continue
-                          label=str(it.get("label") or it.get("name") or it.get("alias") or "")
-                          vid=None
-                          m=re.search(r'\b(3[8-9]|4[0-6])\b', label)
-                          if m: vid=m.group(1)
-                          elif "176" in label or "VL" in label.upper(): vid="VL176"
-                          if not vid: continue
-                          lat=it.get("lat") or it.get("latitude") or (it.get("position") or {}).get("lat")
-                          lng=it.get("lng") or it.get("lon") or (it.get("position") or {}).get("lng")
-                          if lat and lng:
-                              try:
-                                  vehicles.append({"id":vid,"alias":f"CC-{vid}" if vid!="VL176" else "VL-176","lat":float(lat),"lng":float(lng),"vel":int(float(it.get("speed") or it.get("vel") or 0)),"estado":"EN MOVIMIENTO" if float(it.get("speed") or 0)>2 else "DETENIDO","zona":"Maipu","en_servicio":True})
-                              except: pass
-                  except: pass
+            # parsear todo lo capturado
+            blob="\n".join(captured)
+            print(f"BLOB total {len(blob)}")
+            # buscar JSON
+            for txt in captured:
+              try:
+                # intentar JSON directo
+                data_list=None
+                try:
+                  j=json.loads(txt)
+                  if isinstance(j, dict) and "data" in j:
+                    data_list=j["data"]
+                  elif isinstance(j, list):
+                    data_list=j
+                except:
+                  # buscar array dentro del texto
+                  m=re.search(r'\[.*?"lat".*?\]', txt, re.DOTALL|re.IGNORECASE)
+                  if m:
+                    try:
+                      data_list=json.loads(m.group(0))
+                    except:
+                      pass
+                if not data_list:
+                  continue
+                print(f"Lista encontrada {len(data_list)}")
+                for it in data_list:
+                  if not isinstance(it, dict): continue
+                  label=str(it.get("label") or it.get("name") or it.get("alias") or it.get("patente") or "")
+                  vid=None
+                  mm=re.search(r'\b(3[8-9]|4[0-6])\b', label)
+                  if mm: vid=mm.group(1)
+                  elif "176" in label or "102" in label: vid="VL176"
+                  if not vid: continue
+                  lat=it.get("lat") or it.get("latitude")
+                  lng=it.get("lng") or it.get("lon") or it.get("longitude")
+                  if not lat or not lng: 
+                    pos=it.get("position") or {}
+                    lat=pos.get("lat"); lng=pos.get("lng") or pos.get("lon")
+                  if lat and lng:
+                    vehicles.append({"id":vid,"alias":f"CC-{vid}" if vid!="VL176" else "VL-176","lat":float(lat),"lng":float(lng),"vel":int(float(it.get("speed") or it.get("vel") or 0)),"estado":"EN MOVIMIENTO","zona":"Maipu","en_servicio":True})
+              except Exception as e:
+                print(f"parse err {e}")
+          except Exception as e:
+            debug_log.append(traceback.format_exc())
+            print(f"ERROR {e}")
 
           if not vehicles:
-              print("NO SALIO REAL - usando cache pero marcando FALLO")
-              try:
-                  with open("vehicles.json","r") as f:
-                      old=json.load(f)
-                      vehicles=old.get("vehicles",[])
-              except: pass
+            try:
+              with open("vehicles.json","r",encoding="utf-8") as f:
+                old=json.load(f)
+                vehicles=old.get("vehicles",[])
+                print(f"Usando cache viejo {len(vehicles)}")
+            except: pass
 
-          uniq={v["id"]:v for v in vehicles}
+          uniq={str(v["id"]):v for v in vehicles}
           vehicles=list(uniq.values())
           out={
-              "count":len(vehicles),
-              "last_update":datetime.datetime.now(datetime.timezone.utc).isoformat(),
-              "status":f"EN SERVICIO - {len(vehicles)} camiones - San Francisco Monte - {datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M UTC')}",
-              "source":f"playwright V5 - companyId 66 - {USER}",
-              "vehicles":vehicles,
-              "debug_blob": blob[:10000]
+            "count":len(vehicles),
+            "last_update":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "status":f"GPS REAL V8 IP - {len(vehicles)} camiones - {datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M UTC')}",
+            "source":"190.111.129.5/mini/login.html - companyId 66 - V8",
+            "debug":"\n".join(debug_log)[:7000],
+            "vehicles":vehicles
           }
           with open("vehicles.json","w",encoding="utf-8") as f:
-              json.dump(out,f,indent=2,ensure_ascii=False)
-          print(f"FINAL {len(vehicles)} camiones")
+            json.dump(out,f,indent=2,ensure_ascii=False)
+          print(f"GUARDADO FINAL {len(vehicles)}")
           PY
-      - name: Commit
+      - name: Commit siempre aunque falle
+        if: always()
         run: |
-          git config user.name "GPS REAL V5"
+          git config user.name "GPS V8"
           git config user.email "gps@maipu.gob.ar"
           git add vehicles.json
-          git diff --staged --quiet || (git commit -m "GPS V5 REAL $(date -u +%H:%M)" && git push)
+          git diff --staged --quiet || (git commit -m "GPS V8 IP $(date -u +%H:%M)" && git push)

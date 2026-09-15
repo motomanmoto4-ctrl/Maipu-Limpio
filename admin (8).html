@@ -1,0 +1,131 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MAIPÚ LIMPIO - PANEL ADMINISTRADOR</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui}
+body{background:#0f172a;color:#fff}
+.top{background:#E30613;padding:14px 20px;display:flex;justify-content:space-between;font-weight:900}
+.card{margin:12px;background:#fff;color:#000;border-radius:14px;padding:14px;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.badge{padding:5px 10px;border-radius:999px;font-weight:700;font-size:11px}
+.badge-off{background:#fee2e2;color:#991b1b}.badge-proc{background:#fef9c3;color:#854d0e}.badge-mov{background:#dbeafe;color:#1e40af}.badge-live{background:#dcfce7;color:#166534}
+.btn{padding:8px 12px;border-radius:8px;border:0;font-weight:800;cursor:pointer}
+.btn-red{background:#E30613;color:#fff}.btn-ghost{background:#e2e8f0}
+input,select{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;margin:4px 0}
+#map{height:45vh;width:100%;border-radius:10px}
+#adminMiniMap{height:32vh;border-radius:10px}
+.reclamo-item{border:1px solid #eee;border-radius:10px;padding:10px;margin:8px 0}
+.hidden{display:none}
+</style>
+</head><body>
+<div class="top"><div>⚙️ PANEL ADMINISTRADOR - MAIPÚ LIMPIO</div><div><a href="index.html" style="color:#fff;text-decoration:none;background:#000;padding:6px 12px;border-radius:8px">← Volver a vecinos</a></div></div>
+<div id="loginCard" class="card" style="max-width:400px;margin:40px auto">
+<h3>Acceso Administrador</h3>
+<p style="font-size:12px;color:#666">Este panel es privado, no lo ven los vecinos. Clave: barrancas2026</p>
+<input id="adminClave" type="password" placeholder="Clave admin">
+<button class="btn btn-red" style="width:100%;margin-top:8px" onclick="loginAdmin()">ENTRAR</button>
+</div>
+<div id="adminPanel" class="hidden">
+<div class="card">
+<h3>🗺️ Mapa en vivo + Reclamos en mapa</h3>
+<div id="map"></div>
+<div style="display:flex;gap:8px;margin-top:8px"><span id="status" class="badge badge-live">Conectando...</span><span id="count" style="font-size:12px">0 unidades</span></div>
+<div id="msg" style="font-size:12px;margin-top:6px">Verificando...</div>
+<div id="adminMapaWrap" style="margin-top:10px"><div id="adminMiniMap"></div><div id="adminMapaInfo" style="font-size:11px;color:#666;margin-top:4px"></div></div>
+</div>
+<div class="card">
+<div style="display:flex;justify-content:space-between"><h3>📋 Reclamos recibidos</h3><button class="btn btn-ghost" onclick="logoutAdmin()">Salir</button></div>
+<div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
+<button class="btn btn-ghost" onclick="filtrar('todos')">Todos (<span id="c_todos">0</span>)</button>
+<button class="btn btn-ghost" onclick="filtrar('Pendiente')">Pendientes</button>
+<button class="btn btn-ghost" onclick="filtrar('En Proceso')">En Proceso</button>
+<button class="btn btn-ghost" onclick="filtrar('Movilidad Enviada')">Movilidad</button>
+<button class="btn btn-ghost" onclick="filtrar('Finalizado')">Finalizados</button>
+</div>
+<div id="listaAdmin"></div>
+</div>
+<div class="card">
+<h4>📊 Encuestas vecinos</h4>
+<div id="encuestas"></div>
+</div>
+</div>
+<script>
+const MAIPU = {lat:-32.985,lng:-68.78};
+const m = L.map('map').setView([MAIPU.lat,MAIPU.lng],13);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(m);
+let trucks={}, filtro='todos';
+let adminMiniMap=null;
+function loginAdmin(){
+ if(document.getElementById('adminClave').value==='barrancas2026'){localStorage.setItem('maipu_admin','1'); document.getElementById('loginCard').classList.add('hidden'); document.getElementById('adminPanel').classList.remove('hidden'); initMaps(); loadMapa(); renderAdmin();}
+ else alert('Clave incorrecta');
+}
+function logoutAdmin(){localStorage.removeItem('maipu_admin'); location.reload();}
+function initMaps(){
+ if(adminMiniMap) return;
+ adminMiniMap = L.map('adminMiniMap').setView([MAIPU.lat,MAIPU.lng],13);
+ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(adminMiniMap);
+}
+function setStatus(t,l){document.getElementById('status').innerText=t; document.getElementById('status').className='badge '+(l?'badge-live':'badge-off');}
+function renderTrucks(list){
+ const enMov=list.filter(v=> (v.estado||'').includes('MOVIMIENTO') || (v.vel||0)>2).length;
+ document.getElementById('count').innerText=`${list.length} unidades (${enMov} mov, ${list.length-enMov} deten)`;
+ Object.values(trucks).forEach(mm=>{try{m.removeLayer(mm)}catch(e){}});
+ trucks={};
+ list.forEach(v=>{
+  const detenido=(v.estado||'').includes('DETENIDO')||(v.vel||0)==0;
+  const bg=detenido?'#f59e0b':'#E30613';
+  const icon=L.divIcon({html:`<div style="background:${bg};color:#fff;padding:6px 10px;border-radius:10px;font-weight:900;font-size:11px;border:2px solid #fff">🚛 ${v.alias||v.id}<br><small>${detenido?'DETENIDO':v.vel+'km/h'}</small></div>`,className:'',iconSize:[70,36]});
+  const mk=L.marker([v.lat,v.lng],{icon}).addTo(m).bindPopup(`<b>${v.alias} - ${v.estado}</b><br>${v.zona}<br>${v.lat},${v.lng}`);
+  trucks[v.id]=mk;
+  L.marker([v.lat,v.lng]).addTo(adminMiniMap).bindPopup(`${v.alias} - ${v.zona}`);
+ });
+ setStatus('EN SERVICIO - '+enMov+' en mov - GPS REAL IDEC', true);
+}
+async function fetchReal(){
+ try{
+  const r=await fetch('vehicles.json?v='+Date.now(),{cache:'no-store'});
+  if(r.ok){const d=await r.json(); if(d.vehicles&&d.vehicles.length>0) return d.vehicles; if(d.count===0) return [];}
+ }catch(e){}
+ return null;
+}
+async function loadMapa(){
+ const real=await fetchReal();
+ if(real&&real.length>0) renderTrucks(real);
+ else if(real&&real.length===0){setStatus('FINALIZADO - 0 camiones',false); document.getElementById('msg').innerText='Sin camiones - FINALIZADO auto';}
+}
+function getReclamos(){return JSON.parse(localStorage.getItem('maipu_reclamos')||'[]');}
+function saveReclamos(l){localStorage.setItem('maipu_reclamos',JSON.stringify(l));}
+function filtrar(f){filtro=f; renderAdmin();}
+function verMapa(lat,lng,dir,id){
+ adminMiniMap.setView([lat,lng],16);
+ L.marker([lat,lng]).addTo(adminMiniMap).bindPopup(`<b>${id}</b><br>${dir}`).openPopup();
+ document.getElementById('adminMapaInfo').innerText=`Reclamo ${id} - ${dir} - ${lat},${lng}`;
+ m.setView([lat,lng],16);
+}
+function renderAdmin(){
+ const lista=getReclamos();
+ document.getElementById('c_todos').innerText=lista.length;
+ let filtrada=filtro==='todos'?lista:lista.filter(r=>r.estado===filtro);
+ document.getElementById('listaAdmin').innerHTML=filtrada.length?filtrada.map(r=>`
+  <div class="reclamo-item">
+   <div style="display:flex;justify-content:space-between"><b>${r.id} - ${r.nombre}</b><span class="badge badge-off">${r.estado}</span></div>
+   <div style="font-size:12px">${r.tipo} | ${r.dir} - ${r.barrio} | ${r.tel} | 📍 ${r.lat?r.lat.toFixed(5):''}, ${r.lng?r.lng.toFixed(5):''}</div>
+   <div style="font-size:12px;margin:4px 0">${r.desc}</div>
+   <div style="font-size:11px;color:#888">${r.fecha}</div>
+   <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">
+    <select id="est_${r.id}" style="width:auto"><option ${r.estado==='Pendiente'?'selected':''}>Pendiente</option><option ${r.estado==='En Proceso'?'selected':''}>En Proceso</option><option ${r.estado==='Movilidad Enviada'?'selected':''}>Movilidad Enviada</option><option ${r.estado==='Finalizado'?'selected':''}>Finalizado</option></select>
+    <input id="resp_${r.id}" placeholder="Respuesta" value="${r.respuesta||''}" style="flex:1">
+    <input id="mov_${r.id}" placeholder="Movilidad/Chofer" value="${r.movilidad||''}" style="flex:1">
+    <button class="btn btn-red" onclick="guardar('${r.id}')">Guardar</button>
+    ${r.lat?`<button class="btn btn-ghost" onclick="verMapa(${r.lat},${r.lng},'${r.dir.replace(/'/g,'')}','${r.id}')">📍 Ver en mapa</button>`:''}
+   </div>
+  </div>`).join(''):'<p style="color:#888">Sin reclamos</p>';
+ document.getElementById('encuestas').innerHTML=lista.filter(r=>r.calif).map(r=>`<div style="font-size:12px;border-bottom:1px solid #eee;padding:4px 0"><b>${r.id}</b> - ${'⭐'.repeat(r.calif)} - ${r.nombre}</div>`).join('')||'<p style="color:#888">Sin encuestas</p>';
+}
+function guardar(id){
+ const lista=getReclamos(); const r=lista.find(x=>x.id===id);
+ if(r){r.estado=document.getElementById('est_'+id).value; r.respuesta=document.getElementById('resp_'+id).value; r.movilidad=document.getElementById('mov_'+id).value; saveReclamos(lista); renderAdmin(); alert('Actualizado');}
+}
+if(localStorage.getItem('maipu_admin')==='1'){document.getElementById('loginCard').classList.add('hidden'); document.getElementById('adminPanel').classList.remove('hidden'); initMaps(); loadMapa(); renderAdmin(); setInterval(loadMapa,15000);}
+</script>
+</body></html>

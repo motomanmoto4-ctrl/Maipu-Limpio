@@ -1,0 +1,90 @@
+{
+  "count": 8,
+  "status": "EN SERVICIO - 8 camiones AHORA - 38-46+VL176 - 43 y 46 fuera hoy - 16:45",
+  "last_update": "2026-09-14T16:45:53.326698",
+  "source": "https://rastreo.idecgps.com.ar/s/ - FLOTA OFICIAL 38-39-40-41-42-43-44-45-46+VL176 - recoleccion/maipu - Cada 2 min",
+  "flota": "38-39-40-41-42-43-44-45-46+VL176 - OFICIAL",
+  "nota": "Solo flota oficial 38-46 + VL176. 43 y 46 fuera hoy. Si mañana sale el 43 aparece solo automatico.",
+  "vehicles": [
+    {
+      "id": "38",
+      "alias": "38 CC-38",
+      "lat": -32.985,
+      "lng": -68.78,
+      "vel": 12,
+      "estado": "EN SERVICIO - 12 km/h",
+      "zona": "Maipu Centro - CC-38",
+      "en_servicio": true
+    },
+    {
+      "id": "39",
+      "alias": "39 CC-39",
+      "lat": -32.923,
+      "lng": -68.782,
+      "vel": 8,
+      "estado": "EN SERVICIO - 8 km/h",
+      "zona": "Barrio COVI.MET III - CC-39 8km/h",
+      "en_servicio": true
+    },
+    {
+      "id": "40",
+      "alias": "40 CC-40",
+      "lat": -32.935,
+      "lng": -68.705,
+      "vel": 0,
+      "estado": "DETENIDO",
+      "zona": "Coquimbito - CC-40 DETENIDO",
+      "en_servicio": true
+    },
+    {
+      "id": "41",
+      "alias": "41 CC-41",
+      "lat": -32.918,
+      "lng": -68.795,
+      "vel": 9,
+      "estado": "EN SERVICIO - 9 km/h",
+      "zona": "General Gutierrez - CC-41 9km/h",
+      "en_servicio": true
+    },
+    {
+      "id": "42",
+      "alias": "42 CC-42",
+      "lat": -32.92,
+      "lng": -68.785,
+      "vel": 11,
+      "estado": "EN SERVICIO - 11 km/h",
+      "zona": "General Gutierrez - CC-42 11km/h",
+      "en_servicio": true
+    },
+    {
+      "id": "44",
+      "alias": "44 CC-44",
+      "lat": -32.958,
+      "lng": -68.774,
+      "vel": 17,
+      "estado": "EN SERVICIO - 17 km/h",
+      "zona": "Maipu Centro - CC-44 17km/h MOVIENDOSE",
+      "en_servicio": true
+    },
+    {
+      "id": "45",
+      "alias": "45 CC-45",
+      "lat": -32.974,
+      "lng": -68.801,
+      "vel": 15,
+      "estado": "EN SERVICIO - 15 km/h",
+      "zona": "Parque Metropolitano - CC-45 15km/h",
+      "en_servicio": true
+    },
+    {
+      "id": "VL176",
+      "alias": "VL 176",
+      "lat": -32.96,
+      "lng": -68.77,
+      "vel": 7,
+      "estado": "EN SERVICIO - 7 km/h",
+      "zona": "Maipu - VL176",
+      "en_servicio": true
+    }
+  ]
+}

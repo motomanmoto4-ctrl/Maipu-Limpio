@@ -1,10 +1,8 @@
 {
   "count": 8,
-  "status": "EN SERVICIO - 8 camiones - 38-46+VL176 - 15/09 01:02 - CACHE - fallo login",
-  "last_update": "2026-09-15T01:02:44.548750+00:00",
-  "source": "cache - token FALLO - companyId 66 - recoleccion",
-  "flota_oficial": "38-39-40-41-42-43-44-45-46 + VL176",
-  "debug_token": "NO TOKEN - revisar login endpoint",
+  "last_update": "2026-09-15T01:13:00.979236+00:00",
+  "source": "playwright real monitor",
+  "debug_token": "PLAYWRIGHT REAL",
   "vehicles": [
     {
       "id": "VL176",

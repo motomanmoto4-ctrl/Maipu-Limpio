@@ -1,11 +1,21 @@
 {
   "count": 8,
-  "status": "EN SERVICIO - 8 camiones AHORA - 38-46+VL176 - 43 y 46 fuera hoy - 16:45",
-  "last_update": "2026-09-14T16:45:53.326698",
-  "source": "https://rastreo.idecgps.com.ar/s/ - FLOTA OFICIAL 38-39-40-41-42-43-44-45-46+VL176 - recoleccion/maipu - Cada 2 min",
-  "flota": "38-39-40-41-42-43-44-45-46+VL176 - OFICIAL",
-  "nota": "Solo flota oficial 38-46 + VL176. 43 y 46 fuera hoy. Si mañana sale el 43 aparece solo automatico.",
+  "status": "EN SERVICIO - 8 camiones - 38-46+VL176 - 15/09 00:24 - GPS REAL cada 2 min",
+  "last_update": "2026-09-15T00:24:23.481371",
+  "source": "cache - companyId 66 Municipalidad Maipu - data pageSize 10 - recoleccion/*** - cada 2 min",
+  "flota_oficial": "38-39-40-41-42-43-44-45-46 + VL176 (solo recolectores domiciliarios)",
+  "nota": "Flota oficial: 38-46+VL176. 43 y 46 fuera hoy aparecen auto si vuelven. API detectada: data con companyId 66 pagination pageSize 10",
   "vehicles": [
+    {
+      "id": "VL176",
+      "alias": "VL 176",
+      "lat": -32.96,
+      "lng": -68.77,
+      "vel": 7,
+      "estado": "EN SERVICIO - 7 km/h",
+      "zona": "Maipu - VL176",
+      "en_servicio": true
+    },
     {
       "id": "38",
       "alias": "38 CC-38",
@@ -74,16 +84,6 @@
       "vel": 15,
       "estado": "EN SERVICIO - 15 km/h",
       "zona": "Parque Metropolitano - CC-45 15km/h",
-      "en_servicio": true
-    },
-    {
-      "id": "VL176",
-      "alias": "VL 176",
-      "lat": -32.96,
-      "lng": -68.77,
-      "vel": 7,
-      "estado": "EN SERVICIO - 7 km/h",
-      "zona": "Maipu - VL176",
       "en_servicio": true
     }
   ]

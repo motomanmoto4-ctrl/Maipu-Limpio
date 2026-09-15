@@ -1,10 +1,10 @@
 {
   "count": 8,
-  "status": "EN SERVICIO - 8 camiones - 38-46+VL176 - 15/09 00:41 - GPS REAL cada 2 min",
-  "last_update": "2026-09-15T00:41:17.537361",
-  "source": "cache - companyId 66 Municipalidad Maipu - data pageSize 10 - recoleccion/*** - cada 2 min",
-  "flota_oficial": "38-39-40-41-42-43-44-45-46 + VL176 (solo recolectores domiciliarios)",
-  "nota": "Flota oficial: 38-46+VL176. 43 y 46 fuera hoy aparecen auto si vuelven. API detectada: data con companyId 66 pagination pageSize 10",
+  "status": "EN SERVICIO - 8 camiones - 38-46+VL176 - 15/09 00:54 - CACHE - fallo login",
+  "last_update": "2026-09-15T00:54:01.294555",
+  "source": "cache - token FALLO - companyId 66 - recoleccion",
+  "flota_oficial": "38-39-40-41-42-43-44-45-46 + VL176",
+  "debug_token": "NO TOKEN - revisar login endpoint",
   "vehicles": [
     {
       "id": "VL176",

@@ -1,4 +1,4 @@
-name: GPS REAL Maipu 38-46+VL176 Cada 2 Min - TOKEN
+name: GPS REAL Maipu PLAYWRIGHT REAL
 
 on:
   schedule:
@@ -15,197 +15,117 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install requests
-      - name: Sync GPS REAL con TOKEN companyId 66
+      - name: Instalar navegador real
+        run: |
+          pip install playwright requests
+          playwright install --with-deps chromium
+      - name: Sacar GPS de San Francisco del Monte real
         env:
           IDEC_USER: recoleccion
           IDEC_PASS: maipu
         run: |
           python << 'PY'
-          import requests, json, os, re, datetime, time, zoneinfo
+          import json, re, datetime, time, os
+          from playwright.sync_api import sync_playwright
 
-          BASE = "https://rastreo.idecgps.com.ar"
-          USER = os.getenv("IDEC_USER","recoleccion")
-          PASS = os.getenv("IDEC_PASS","maipu")
-          sess = requests.Session()
-          sess.headers.update({"User-Agent":"Mozilla/5.0","Accept":"application/json, text/plain, */*","Origin":BASE,"Referer":BASE+"/streetz/"})
-
-          token = None
-          # 1) Intentar logins tipicos de StreetZ / IDECGPS
-          login_endpoints = [
-              ("/streetz/api/login", {"username": USER, "password": PASS}),
-              ("/streetz/api/auth/login", {"username": USER, "password": PASS}),
-              ("/api/login", {"username": USER, "password": PASS}),
-              ("/api/auth/login", {"username": USER, "password": PASS}),
-              ("/streetz/api/auth", {"user": USER, "pass": PASS}),
-              ("/login", {"username": USER, "password": PASS}),
-          ]
-          for ep, payload in login_endpoints:
-              try:
-                  url = BASE+ep
-                  print(f"LOGIN POST {url} -> {payload}")
-                  r = sess.post(url, json=payload, timeout=20)
-                  print(f"  status {r.status_code} body {r.text[:300]}")
-                  if r.status_code==200:
-                      try:
-                          j=r.json()
-                          # buscar token en respuesta
-                          for k in ["token","access_token","accessToken","jwt","id_token","authToken"]:
-                              if k in j:
-                                  token=j[k]
-                                  break
-                          if not token and "data" in j and isinstance(j["data"], dict):
-                              for k in ["token","access_token"]:
-                                  if k in j["data"]:
-                                      token=j["data"][k]
-                          if token:
-                              print(f"TOKEN OK en {ep}: {token[:20]}...")
-                              break
-                      except:
-                          pass
-                  # algunos devuelven token en header
-                  if not token and "Authorization" in r.headers:
-                      token=r.headers["Authorization"].replace("Bearer ","")
-              except Exception as e:
-                  print(f"  err {e}")
-
-          # 2) Si hay token, ponerlo en header
-          if token:
-              sess.headers.update({"Authorization": f"Bearer {token}", "token": token, "x-access-token": token})
-
-          # 3) Ahora probar endpoints que devuelven el data con companyId 66 pageSize 10 que viste
-          candidates = [
-              "/streetz/api/getVehicles",
-              "/streetz/api/vehicles",
-              "/streetz/api/getData",
-              "/streetz/api/data",
-              "/streetz/api/positions",
-              "/streetz/api/units",
-              "/api/vehicles",
-              "/api/data",
-              "/streetz/api/getVehiclesPositions",
-              "/streetz/api/getLastPositions",
-          ]
-
+          BASE="https://rastreo.idecgps.com.ar/streetz/"
+          USER=os.getenv("IDEC_USER")
+          PASS=os.getenv("IDEC_PASS")
           vehicles=[]
-          found=None
-          for ep in candidates:
-              try:
-                  url=BASE+ep
-                  # agregar companyId como param si hace falta
-                  print(f"GET {url}")
-                  r=sess.get(url, params={"companyId":66, "companyId[]":66, "pageSize":100, "page":1}, timeout=25)
-                  print(f"  -> {r.status_code} len {len(r.text)} contains data? {'data' in r.text[:2000]}")
-                  if r.status_code!=200:
-                      continue
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page()
+
+              captured=[]
+              def on_response(resp):
                   try:
-                      j=r.json()
-                  except:
-                      continue
-                  # formato que viste: {"data":[{Id:"887", companyId:"66", label:"...", ...}], "pagination":{"pageSize":10}}
-                  data_list=None
-                  if isinstance(j, dict) and "data" in j and isinstance(j["data"], list):
-                      data_list=j["data"]
-                  elif isinstance(j, list):
-                      data_list=j
+                      if "streetz" in resp.url and resp.status==200:
+                          txt=resp.text()
+                          if "companyId" in txt or '"lat"' in txt:
+                              print(f"CAPTURE {resp.url[:80]}")
+                              captured.append(txt)
+                  except: pass
+              page.on("response", on_response)
 
-                  if not data_list:
-                      continue
+              ws_data=[]
+              def on_ws(ws):
+                  def on_msg(payload):
+                      s=str(payload)
+                      if "lat" in s or "companyId" in s:
+                          ws_data.append(s)
+                          print(f"WS {s[:1000]}")
+                  ws.on("framereceived", on_msg)
+              page.on("websocket", on_ws)
 
-                  # Chequear que tiene companyId 66 o label con 38-46
-                  print(f"  data_list {len(data_list)} sample {str(data_list[0])[:500]}")
-                  for item in data_list:
-                      cid=str(item.get("companyId",""))
-                      if cid not in ["66","60",""]:
-                          # pero si tiene label 38-46 igual lo aceptamos
-                          lbl=str(item.get("label") or item.get("label_ext") or "")
-                          if not re.search(r'(3[8-9]|4[0-6]|176|102)', lbl):
-                              continue
-                      raw_label=str(item.get("label") or item.get("label_ext") or item.get("alias") or item.get("patente") or item.get("name") or item.get("Id") or "")
-                      # mapear a 38-46+VL176
-                      vid=None
-                      m=re.search(r'\b(3[8-9]|4[0-6])\b', raw_label.upper())
-                      if m:
-                          vid=m.group(1)
-                      elif "176" in raw_label or "VL" in raw_label.upper() or "102" in raw_label:
-                          vid="VL176"
-                      else:
-                          # intentar por orden Id si no hay label util: usar Id 887 etc -> mapear segun posicion para no perder GPS
-                          # Si el Id es numerico y el array es de 10, lo dejamos pasar como CC-38 etc por orden
-                          pass
-
-                      if not vid:
-                          continue
-                      if vid not in ["38","39","40","41","42","43","44","45","46","VL176"]:
-                          continue
-
-                      lat=item.get("lat") or item.get("latitude") or item.get("y") or item.get("Lat")
-                      lng=item.get("lng") or item.get("lon") or item.get("longitude") or item.get("x") or item.get("Lng")
-                      if not lat:
-                          pos=item.get("position") or item.get("pos") or item.get("lastPosition") or {}
-                          lat=pos.get("lat") or pos.get("y")
-                          lng=pos.get("lng") or pos.get("lon") or pos.get("x")
-
-                      if not lat or not lng:
-                          continue
-                      try:
-                          lat=float(lat); lng=float(lng)
-                      except:
-                          continue
-
-                      vel=0
-                      for k in ["vel","speed","velocidad","velocidadActual","Speed","velocity"]:
-                          if item.get(k) is not None:
-                              try:
-                                  vel=int(float(item[k])); break
-                              except: pass
-                          pos=item.get("position") or {}
-                          if pos.get(k) is not None:
-                              try:
-                                  vel=int(float(pos[k])); break
-                              except: pass
-
-                      vehicles.append({"id":vid,"alias":f"CC-{vid}" if vid!="VL176" else "VL-176","lat":lat,"lng":lng,"vel":vel,"estado":"EN MOVIMIENTO" if vel>2 else "DETENIDO","zona":"Maipu","en_servicio":True})
-                  if vehicles:
-                      found=ep
-                      break
-              except Exception as e:
-                  print(f" err {ep} {e}")
-
-          # Si no pudo traer real, NO sobrescribir con viejo para que veas que falla - pero guardamos viejo para no quedar vacio
-          if not vehicles:
-              print("NO SE PUDO TRAER GPS REAL - manteniendo viejo pero marcando fallo")
+              page.goto(BASE, timeout=60000)
+              time.sleep(6)
+              # login
               try:
-                  with open("vehicles.json","r",encoding="utf-8") as f:
-                      old=json.load(f)
-                      for v in old.get("vehicles",[]):
-                          if v.get("id") in ["38","39","40","41","42","43","44","45","46","VL176"]:
-                              vehicles.append(v)
+                  page.fill('input[type="text"]', USER)
+                  page.fill('input[type="password"]', PASS)
+                  page.click('button')
+                  page.wait_for_timeout(10000)
               except Exception as e:
-                  print(f" no old {e}")
+                  print(f"login err {e}")
 
-          uniq={}
-          for v in vehicles:
-              uniq[v["id"]]=v
+              page.wait_for_timeout(15000)
+
+              # buscar en JS
+              try:
+                  txt = page.evaluate("() => document.documentElement.innerHTML")
+                  captured.append(txt)
+              except: pass
+              
+              # parsear
+              all_txt = " ".join(captured + ws_data)
+              # buscar json con data
+              for txt in captured:
+                  try:
+                      j=json.loads(txt)
+                      lst=None
+                      if isinstance(j, dict) and "data" in j: lst=j["data"]
+                      elif isinstance(j, list): lst=j
+                      if not lst: continue
+                      for item in lst:
+                          raw=str(item.get("label") or item.get("name") or "")
+                          vid=None
+                          m=re.search(r'\b(3[8-9]|4[0-6])\b', raw)
+                          if m: vid=m.group(1)
+                          elif "176" in raw: vid="VL176"
+                          if not vid: continue
+                          lat=item.get("lat") or item.get("latitude")
+                          lng=item.get("lng") or item.get("lon")
+                          if lat and lng:
+                              vehicles.append({"id":vid,"alias":f"CC-{vid}" if vid!="VL176" else "VL-176","lat":float(lat),"lng":float(lng),"vel":int(float(item.get("speed") or 0)),"estado":"EN MOVIMIENTO","zona":"Maipu","en_servicio":True})
+                  except: pass
+
+              browser.close()
+
+          if not vehicles:
+              print("No saco real, mantiene viejo")
+              try:
+                  with open("vehicles.json","r") as f:
+                      vehicles=json.load(f).get("vehicles",[])
+              except: pass
+
+          uniq={v["id"]:v for v in vehicles}
           vehicles=list(uniq.values())
-          vehicles.sort(key=lambda x: (0 if x["id"]=="VL176" else int(x["id"])))
 
           out={
               "count":len(vehicles),
-              "status":f"EN SERVICIO - {len(vehicles)} camiones - 38-46+VL176 - {datetime.datetime.now().strftime('%d/%m %H:%M')} - {'GPS REAL' if found else 'CACHE - fallo login'}",
               "last_update":datetime.datetime.now(datetime.timezone.utc).isoformat(),
-              "source":f"{found or 'cache'} - token {'OK' if token else 'FALLO'} - companyId 66 - {USER}",
-              "flota_oficial":"38-39-40-41-42-43-44-45-46 + VL176",
-              "debug_token": "OK" if token else "NO TOKEN - revisar login endpoint",
+              "source":"playwright real monitor",
+              "debug_token":"PLAYWRIGHT REAL",
               "vehicles":vehicles
           }
           with open("vehicles.json","w",encoding="utf-8") as f:
               json.dump(out,f,indent=2,ensure_ascii=False)
-          print(f"Guardado {len(vehicles)} -> {found} token={bool(token)}")
+          print(f"Guardado {len(vehicles)}")
           PY
       - name: Commit
         run: |
-          git config user.name "GPS Maipu Bot TOKEN"
+          git config user.name "GPS REAL"
           git config user.email "gps@maipu.gob.ar"
           git add vehicles.json
-          git diff --staged --quiet || (git commit -m "GPS REAL TOKEN $(date -u +'%H:%M UTC') companyId 66" && git push)
+          git diff --staged --quiet || (git commit -m "GPS REAL $(date -u +%H:%M)" && git push)
